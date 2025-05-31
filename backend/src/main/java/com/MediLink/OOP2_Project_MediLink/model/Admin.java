@@ -1,4 +1,10 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-public class Admin {
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "admin")
+public class Admin extends User{
+
 }
