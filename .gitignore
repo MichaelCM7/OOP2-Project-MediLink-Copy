@@ -69,3 +69,7 @@ build/
 /dataSources/
 /dataSources.local.xml
 >>>>>>> a2531763144d152b636299a20fd92e8cd9142d33
+
+.target/
+.frontend/dist/
+.frontend/node_modules/
