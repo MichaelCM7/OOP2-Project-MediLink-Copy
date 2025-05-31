@@ -1,4 +1,4 @@
 package com.MediLink.OOP2_Project_MediLink.repository;
 
-public class UserRepository {
+public class PatientRepository {
 }
