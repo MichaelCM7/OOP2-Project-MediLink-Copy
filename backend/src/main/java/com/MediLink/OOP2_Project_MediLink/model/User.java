@@ -2,12 +2,8 @@ package com.MediLink.OOP2_Project_MediLink.model;
 
 import jakarta.persistence.*;
 
-@Entity
+@MappedSuperclass
 public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int userId;
-
     @Column(nullable = false)
     private String firstName;
 
@@ -35,14 +31,6 @@ public class User {
         this.phone = phone;
         this.password = password;
         this.description = description;
-    }
-
-    public int getUserId() {
-        return userId;
-    }
-
-    public void setUserId(int userId) {
-        this.userId = userId;
     }
 
     public String getFirstName() {
@@ -92,5 +80,4 @@ public class User {
     public void setDescription(String description) {
         this.description = description;
     }
-
 }
