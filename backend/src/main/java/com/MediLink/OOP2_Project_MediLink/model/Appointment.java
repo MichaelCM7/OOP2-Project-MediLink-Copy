@@ -3,6 +3,7 @@ package com.MediLink.OOP2_Project_MediLink.model;
 import jakarta.persistence.*;
 
 @Entity
+@Table(name = "appointment")
 public class Appointment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
