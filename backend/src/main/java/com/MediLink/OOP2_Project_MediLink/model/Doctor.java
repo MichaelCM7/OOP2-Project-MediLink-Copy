@@ -3,7 +3,7 @@ package com.MediLink.OOP2_Project_MediLink.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "doctor")
+@Table(name = "doctors")
 public class Doctor extends User {
 
     @Id
