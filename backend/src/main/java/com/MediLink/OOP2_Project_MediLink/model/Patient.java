@@ -1,13 +1,12 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "patient")
-public class Patient extends User{
+@Document(collection = "patient")
+public class Patient extends User {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int patientId;
+    private String patientId;
 
     public Patient() {}
 
@@ -15,7 +14,7 @@ public class Patient extends User{
         super(firstName, lastName, email, phone, password, null);
     }
 
-    public int getPatientId() {
+    public String getPatientId() {
         return patientId;
     }
 }

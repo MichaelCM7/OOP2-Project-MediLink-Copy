@@ -1,27 +1,20 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
+@Document(collection = "rating")
 public class Rating {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int ratingID;
-
-    @Column(nullable = false)
+    private String ratingID;
     private int rating;
-
     private String comment;
-
-    @Column(nullable = false)
     private int date;
-
-    @Column(nullable = false)
     private int time;
 
     public Rating() {}
 
-    public Rating(int ratingID, int rating, String comment, int date, int time) {
+    public Rating(String ratingID, int rating, String comment, int date, int time) {
         this.ratingID = ratingID;
         this.rating = rating;
         this.comment = comment;
@@ -29,13 +22,19 @@ public class Rating {
         this.time = time;
     }
 
-    public int getRatingID() {
+    // Getters and setters.
+    public String getRatingID() {
         return ratingID;
+    }
+
+    public void setRatingID(String ratingID) {
+        this.ratingID = ratingID;
     }
 
     public int getRating() {
         return rating;
     }
+
     public void setRating(int rating) {
         this.rating = rating;
     }

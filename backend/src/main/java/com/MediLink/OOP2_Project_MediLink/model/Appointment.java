@@ -1,24 +1,15 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "appointment")
+@Document(collection = "appointment")
 public class Appointment {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int appointmentId;
-
-    @Column(nullable = false)
+    private String appointmentId;
     private String date;
-
-    @Column(nullable = false)
     private String time;
-
-    @Column(nullable = false)
     private String doctorName;
-
-    @Column(nullable = false)
     private String hospitalName;
 
     public Appointment() {}
@@ -30,11 +21,12 @@ public class Appointment {
         this.hospitalName = hospitalName;
     }
 
-    public int getAppointmentId() {
+    // Getters and setters
+    public String getAppointmentId() {
         return appointmentId;
     }
 
-    public void setAppointmentId(int appointmentId) {
+    public void setAppointmentId(String appointmentId) {
         this.appointmentId = appointmentId;
     }
 

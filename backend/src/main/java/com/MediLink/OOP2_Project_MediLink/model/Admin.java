@@ -1,13 +1,12 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "admin")
+@Document(collection = "admin")
 public class Admin extends User {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int adminId;
+    private String adminId;
 
     public Admin() {}
 
@@ -15,7 +14,7 @@ public class Admin extends User {
         super(firstName, lastName, email, phone, password, null);
     }
 
-    public int getAdminId() {
+    public String getAdminId() {
         return adminId;
     }
 }

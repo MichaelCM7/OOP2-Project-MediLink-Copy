@@ -1,19 +1,13 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "doctors")
+@Document(collection = "doctors")
 public class Doctor extends User {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int doctorId;
-
-    @Column(nullable = false)
+    private String doctorId;
     private String specialisation;
-
-    @Column(nullable = false)
     private String hospitalName;
 
     public Doctor() {}
@@ -25,24 +19,9 @@ public class Doctor extends User {
         this.hospitalName = hospitalName;
     }
 
-    public int getDoctorId() {
-        return doctorId;
-    }
-
-    public void setSpecialisation(String specialisation) {
-        this.specialisation = specialisation;
-    }
-
-    public String getSpecialisation() {
-        return specialisation;
-    }
-
-    public void setHospitalName(String hospitalName) {
-        this.hospitalName = hospitalName;
-    }
-
-    public String getHospitalName() {
-        return hospitalName;
-    }
+    public String getDoctorId() { return doctorId; }
+    public void setSpecialisation(String specialisation) { this.specialisation = specialisation; }
+    public String getSpecialisation() { return specialisation; }
+    public void setHospitalName(String hospitalName) { this.hospitalName = hospitalName; }
+    public String getHospitalName() { return hospitalName; }
 }
-

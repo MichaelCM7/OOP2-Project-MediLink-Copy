@@ -1,30 +1,17 @@
 package com.MediLink.OOP2_Project_MediLink.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "hospital")
+@Document(collection = "hospital")
 public class Hospital {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int hospitalId;
-
-    @Column(nullable = false)
+    private String hospitalId;
     private String hospitalName;
-
-    @Column(nullable = false)
     private String hospitalAddress;
-
-    @Column(nullable = false)
     private String departments;
-
-    @Column(unique = true)
     private String email;
-
-    @Column(unique = true)
     private String phoneNo;
-
-    @Column(nullable = false)
     private String password;
 
     public Hospital() {}
@@ -39,8 +26,13 @@ public class Hospital {
         this.password = password;
     }
 
-    public int getHospitalId() {
+    // Getters and setters.
+    public String getHospitalId() {
         return hospitalId;
+    }
+
+    public void setHospitalId(String hospitalId) {
+        this.hospitalId = hospitalId;
     }
 
     public String getHospitalName() {
@@ -67,13 +59,13 @@ public class Hospital {
         this.departments = departments;
     }
 
-   public String getEmail() {
+    public String getEmail() {
         return email;
-   }
+    }
 
-   public void setEmail(String email) {
-       this.email = email;
-   }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
     public String getPhoneNo() {
         return phoneNo;
