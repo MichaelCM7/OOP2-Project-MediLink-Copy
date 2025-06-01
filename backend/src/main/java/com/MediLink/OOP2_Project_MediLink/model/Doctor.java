@@ -25,6 +25,10 @@ public class Doctor extends User {
         this.hospitalName = hospitalName;
     }
 
+    public int getDoctorId() {
+        return doctorId;
+    }
+
     public void setSpecialisation(String specialisation) {
         this.specialisation = specialisation;
     }

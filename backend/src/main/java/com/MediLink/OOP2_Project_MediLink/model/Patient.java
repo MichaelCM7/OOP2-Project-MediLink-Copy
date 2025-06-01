@@ -14,4 +14,8 @@ public class Patient extends User{
     public Patient(String firstName, String lastName, String email, String phone, String password) {
         super(firstName, lastName, email, phone, password, null);
     }
+
+    public int getPatientId() {
+        return patientId;
+    }
 }

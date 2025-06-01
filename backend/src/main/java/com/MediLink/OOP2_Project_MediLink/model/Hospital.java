@@ -39,6 +39,10 @@ public class Hospital {
         this.password = password;
     }
 
+    public int getHospitalId() {
+        return hospitalId;
+    }
+
     public String getHospitalName() {
         return hospitalName;
     }
