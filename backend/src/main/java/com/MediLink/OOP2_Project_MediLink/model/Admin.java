@@ -10,8 +10,8 @@ public class Admin extends User {
 
     public Admin() {}
 
-    public Admin(String firstName, String lastName, String email, String phone, String password) {
-        super(firstName, lastName, email, phone, password, null);
+    public Admin(String firstName, String lastName, String email, String phone, String password,String description) {
+        super(firstName, lastName, email, phone, password, description);
     }
 
     public String getAdminId() {
