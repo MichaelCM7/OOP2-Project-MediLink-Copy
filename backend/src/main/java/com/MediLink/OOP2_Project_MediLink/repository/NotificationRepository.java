@@ -1,4 +1,4 @@
 package com.MediLink.OOP2_Project_MediLink.repository;
 
-public class NotificationRepository {
+public interface NotificationRepository {
 }
