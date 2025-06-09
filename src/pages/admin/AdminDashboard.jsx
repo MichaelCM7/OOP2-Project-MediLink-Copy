@@ -1,451 +1,663 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { searchService } from '../../services/searchService';
-import './NotFound.css';
+import { useApi } from '../../hooks/useApi';
+import { useNotification } from '../../hooks/useNotification';
+import { useTheme } from '../../context/ThemeContext';
 
-const NotFound = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+const AdminDashboard = () => {
   const { user } = useAuth();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [popularPages, setPopularPages] = useState([]);
-  const [recentPages, setRecentPages] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { get } = useApi();
+  const { showSuccess, showError } = useNotification();
+  const { theme } = useTheme();
 
+  // Dashboard state
+  const [dashboardData, setDashboardData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('today'); // today, week, month, year
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Load dashboard data
   useEffect(() => {
-    // Extract search terms from the current URL
-    const pathSegments = location.pathname.split('/').filter(segment => segment);
-    if (pathSegments.length > 0) {
-      setSearchQuery(pathSegments[pathSegments.length - 1].replace(/[-_]/g, ' '));
-    }
+    fetchDashboardData();
+  }, [selectedTimeframe]);
 
-    fetchSuggestions();
-    loadRecentPages();
-  }, [location.pathname]);
-
-  const fetchSuggestions = async () => {
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
     try {
-      const response = await searchService.getPopularPages();
-      setPopularPages(response.data || []);
+      const result = await get(`/admin/dashboard?timeframe=${selectedTimeframe}`);
+      if (result.success) {
+        setDashboardData(result.data);
+      } else {
+        setMockDashboardData();
+      }
     } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
-      // Fallback to hardcoded popular pages
-      setPopularPages([
-        { title: 'Find Doctors', path: '/search', description: 'Search for healthcare providers' },
-        { title: 'Book Appointment', path: '/appointments', description: 'Schedule your next appointment' },
-        { title: 'Emergency Alert', path: '/emergency', description: 'Get immediate medical help' },
-        { title: 'Help Center', path: '/help', description: 'Browse our knowledge base' },
-        { title: 'Contact Support', path: '/contact', description: 'Get in touch with our team' }
-      ]);
-    }
-  };
-
-  const loadRecentPages = () => {
-    try {
-      const recent = JSON.parse(localStorage.getItem('recentPages') || '[]');
-      setRecentPages(recent.slice(0, 5));
-    } catch (error) {
-      console.error('Failed to load recent pages:', error);
-    }
-  };
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    setLoading(true);
-    try {
-      // Redirect to search with the query
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    } catch (error) {
-      console.error('Search failed:', error);
+      console.error('Error fetching dashboard data:', error);
+      setMockDashboardData();
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleSuggestionClick = async (query) => {
-    setSearchQuery(query);
-    setLoading(true);
+  // Mock data for development
+  const setMockDashboardData = () => {
+    const mockData = {
+      metrics: {
+        totalPatients: 15284,
+        totalDoctors: 342,
+        totalAppointments: 1256,
+        totalEmergencies: 23,
+        activeEmergencies: 3,
+        appointmentsToday: 156,
+        newRegistrations: 47,
+        averageRating: 4.6,
+        systemUptime: 99.8,
+        revenue: 245000
+      },
+      trends: {
+        patientsGrowth: 12.5,
+        appointmentsGrowth: 8.3,
+        emergenciesChange: -15.2,
+        ratingsChange: 5.1
+      },
+      recentActivities: [
+        {
+          id: 1,
+          type: 'emergency',
+          title: 'Emergency Alert - Cardiac Event',
+          description: 'Patient John Doe requires immediate attention',
+          timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+          priority: 'critical',
+          status: 'active'
+        },
+        {
+          id: 2,
+          type: 'appointment',
+          title: 'High Volume Alert',
+          description: '85% appointment capacity reached for today',
+          timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+          priority: 'medium',
+          status: 'resolved'
+        },
+        {
+          id: 3,
+          type: 'registration',
+          title: 'New Doctor Registration',
+          description: 'Dr. Sarah Wilson - Cardiologist pending approval',
+          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          priority: 'low',
+          status: 'pending'
+        },
+        {
+          id: 4,
+          type: 'system',
+          title: 'System Maintenance Complete',
+          description: 'Scheduled maintenance completed successfully',
+          timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+          priority: 'low',
+          status: 'completed'
+        }
+      ],
+      topDoctors: [
+        { id: 1, name: 'Dr. Emily Johnson', specialty: 'Cardiology', rating: 4.9, appointments: 156 },
+        { id: 2, name: 'Dr. Michael Chen', specialty: 'Neurology', rating: 4.8, appointments: 142 },
+        { id: 3, name: 'Dr. Sarah Davis', specialty: 'Pediatrics', rating: 4.8, appointments: 138 },
+        { id: 4, name: 'Dr. James Wilson', specialty: 'Emergency Medicine', rating: 4.7, appointments: 134 }
+      ],
+      departmentStats: [
+        { name: 'Emergency', patients: 234, capacity: 85, utilization: 89 },
+        { name: 'Cardiology', patients: 156, capacity: 200, utilization: 78 },
+        { name: 'Pediatrics', patients: 298, capacity: 350, utilization: 85 },
+        { name: 'Neurology', patients: 89, capacity: 120, utilization: 74 },
+        { name: 'Surgery', patients: 67, capacity: 80, utilization: 84 }
+      ],
+      emergencyAlerts: [
+        {
+          id: 1,
+          type: 'medical_emergency',
+          patient: 'John Doe',
+          location: 'Room 302-A',
+          timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+          status: 'active',
+          priority: 'critical'
+        },
+        {
+          id: 2,
+          type: 'cardiac_emergency',
+          patient: 'Mary Smith',
+          location: 'Emergency Room',
+          timestamp: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+          status: 'responding',
+          priority: 'critical'
+        }
+      ]
+    };
+    setDashboardData(mockData);
+  };
+
+  // Refresh dashboard
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    setRefreshing(false);
+    showSuccess('Dashboard refreshed', 'Data updated successfully');
+  };
+
+  // Quick actions
+  const quickActions = [
+    {
+      id: 'emergency',
+      title: 'Emergency Alerts',
+      description: 'View active emergencies',
+      icon: '🚨',
+      color: '#e74c3c',
+      count: dashboardData?.metrics.activeEmergencies || 0,
+      action: () => window.location.href = '/admin/emergency-alerts'
+    },
+    {
+      id: 'doctors',
+      title: 'Doctor Management',
+      description: 'Manage doctor registrations',
+      icon: '👨‍⚕️',
+      color: '#3498db',
+      count: dashboardData?.metrics.totalDoctors || 0,
+      action: () => window.location.href = '/admin/doctors'
+    },
+    {
+      id: 'patients',
+      title: 'Patient Management',
+      description: 'View patient records',
+      icon: '👥',
+      color: '#27ae60',
+      count: dashboardData?.metrics.totalPatients || 0,
+      action: () => window.location.href = '/admin/patients'
+    },
+    {
+      id: 'appointments',
+      title: 'Appointments',
+      description: 'Manage appointments',
+      icon: '📅',
+      color: '#9b59b6',
+      count: dashboardData?.metrics.appointmentsToday || 0,
+      action: () => window.location.href = '/admin/appointments'
+    }
+  ];
+
+  // Format number with commas
+  const formatNumber = (num) => {
+    return num?.toLocaleString() || '0';
+  };
+
+  // Format time ago
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMs = now - time;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMins / 60);
     
-    try {
-      const response = await searchService.searchSuggestions(query);
-      setSuggestions(response.data || []);
-    } catch (error) {
-      console.error('Failed to get suggestions:', error);
-    } finally {
-      setLoading(false);
-    }
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return time.toLocaleDateString();
   };
 
-  const getQuickActions = () => {
-    if (!user) {
-      return [
-        { title: 'Sign Up', path: '/signup', icon: '👤', description: 'Create your account' },
-        { title: 'Sign In', path: '/login', icon: '🔐', description: 'Access your account' },
-        { title: 'Find Doctors', path: '/search', icon: '👨‍⚕️', description: 'Browse healthcare providers' },
-        { title: 'Emergency Help', path: '/emergency', icon: '🚨', description: 'Get immediate assistance' }
-      ];
-    }
-
-    switch (user.role) {
-      case 'PATIENT':
-        return [
-          { title: 'My Dashboard', path: '/user/dashboard', icon: '📊', description: 'View your overview' },
-          { title: 'Find Doctors', path: '/search', icon: '🔍', description: 'Search for providers' },
-          { title: 'My Appointments', path: '/user/appointments', icon: '📅', description: 'Manage appointments' },
-          { title: 'Medical History', path: '/user/history', icon: '📋', description: 'View your records' }
-        ];
-      case 'DOCTOR':
-        return [
-          { title: 'Doctor Dashboard', path: '/doctor/dashboard', icon: '👨‍⚕️', description: 'Your practice overview' },
-          { title: 'Patient Records', path: '/doctor/patients', icon: '👥', description: 'Manage patients' },
-          { title: 'My Schedule', path: '/doctor/schedule', icon: '📅', description: 'View your calendar' },
-          { title: 'Emergency Alerts', path: '/doctor/emergency', icon: '🚨', description: 'Respond to emergencies' }
-        ];
-      case 'ADMIN':
-        return [
-          { title: 'Admin Dashboard', path: '/admin/dashboard', icon: '⚙️', description: 'System overview' },
-          { title: 'Manage Users', path: '/admin/users', icon: '👥', description: 'User management' },
-          { title: 'System Reports', path: '/admin/reports', icon: '📊', description: 'View analytics' },
-          { title: 'Settings', path: '/admin/settings', icon: '🔧', description: 'System configuration' }
-        ];
-      default:
-        return [
-          { title: 'Home', path: '/', icon: '🏠', description: 'Return to homepage' },
-          { title: 'Help Center', path: '/help', icon: '❓', description: 'Get assistance' },
-          { title: 'Contact Us', path: '/contact', icon: '📧', description: 'Reach out to support' }
-        ];
-    }
+  // Get activity icon
+  const getActivityIcon = (type) => {
+    const icons = {
+      emergency: '🚨',
+      appointment: '📅',
+      registration: '👨‍⚕️',
+      system: '⚙️',
+      patient: '👤'
+    };
+    return icons[type] || '📋';
   };
 
-  const reportBrokenLink = () => {
-    const brokenUrl = window.location.href;
-    const subject = `Broken Link Report: ${brokenUrl}`;
-    const body = `I found a broken link at: ${brokenUrl}\n\nAdditional details:\n- What I was trying to find:\n- How I got to this page:\n- Browser: ${navigator.userAgent}`;
-    
-    window.location.href = `mailto:support@medilink.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Get priority color
+  const getPriorityColor = (priority) => {
+    const colors = {
+      critical: '#e74c3c',
+      high: '#f39c12',
+      medium: '#3498db',
+      low: '#95a5a6'
+    };
+    return colors[priority] || '#95a5a6';
   };
 
-  const quickActions = getQuickActions();
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '50vh' 
+      }}>
+        <div>Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="not-found">
-      <div className="not-found-container">
-        {/* Main Error Display */}
-        <div className="error-display">
-          <div className="error-graphic">
-            <div className="error-number">404</div>
-            <div className="error-icon">🔍</div>
-          </div>
+    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '30px',
+        flexWrap: 'wrap',
+        gap: '15px'
+      }}>
+        <div>
+          <h1 style={{ margin: '0 0 5px 0', fontSize: '28px', color: theme.colors.text }}>
+            Admin Dashboard
+          </h1>
+          <p style={{ margin: 0, color: theme.colors.textSecondary }}>
+            Welcome back, {user?.name || 'Administrator'}
+          </p>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <select
+            value={selectedTimeframe}
+            onChange={(e) => setSelectedTimeframe(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: '6px',
+              fontSize: '14px',
+              backgroundColor: theme.colors.background
+            }}
+          >
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
           
-          <div className="error-content">
-            <h1>Oops! Page Not Found</h1>
-            <p className="error-message">
-              The page you're looking for seems to have gone missing. 
-              Don't worry, we'll help you find what you need!
-            </p>
-            
-            <div className="error-details">
-              <span className="current-url">
-                <strong>Current URL:</strong> {window.location.pathname}
-              </span>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: theme.colors.primary,
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              opacity: refreshing ? 0.7 : 1
+            }}
+          >
+            {refreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '20px',
+        marginBottom: '30px'
+      }}>
+        {[
+          { 
+            title: 'Total Patients', 
+            value: formatNumber(dashboardData?.metrics.totalPatients), 
+            change: dashboardData?.trends.patientsGrowth,
+            icon: '👥',
+            color: '#3498db'
+          },
+          { 
+            title: 'Total Doctors', 
+            value: formatNumber(dashboardData?.metrics.totalDoctors), 
+            change: null,
+            icon: '👨‍⚕️',
+            color: '#27ae60'
+          },
+          { 
+            title: 'Today\'s Appointments', 
+            value: formatNumber(dashboardData?.metrics.appointmentsToday), 
+            change: dashboardData?.trends.appointmentsGrowth,
+            icon: '📅',
+            color: '#9b59b6'
+          },
+          { 
+            title: 'Active Emergencies', 
+            value: formatNumber(dashboardData?.metrics.activeEmergencies), 
+            change: dashboardData?.trends.emergenciesChange,
+            icon: '🚨',
+            color: '#e74c3c'
+          },
+          { 
+            title: 'Average Rating', 
+            value: dashboardData?.metrics.averageRating?.toFixed(1) || '0.0', 
+            change: dashboardData?.trends.ratingsChange,
+            icon: '⭐',
+            color: '#f39c12'
+          },
+          { 
+            title: 'System Uptime', 
+            value: `${dashboardData?.metrics.systemUptime || 0}%`, 
+            change: null,
+            icon: '📊',
+            color: '#1abc9c'
+          }
+        ].map((metric, index) => (
+          <div
+            key={index}
+            style={{
+              backgroundColor: theme.colors.card,
+              padding: '20px',
+              borderRadius: '12px',
+              border: `1px solid ${theme.colors.border}`,
+              boxShadow: theme.shadows.small
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+              <div>
+                <p style={{ margin: '0 0 5px 0', fontSize: '14px', color: theme.colors.textSecondary }}>
+                  {metric.title}
+                </p>
+                <h3 style={{ margin: 0, fontSize: '24px', color: theme.colors.text, fontWeight: '700' }}>
+                  {metric.value}
+                </h3>
+              </div>
+              <div style={{ 
+                fontSize: '24px', 
+                backgroundColor: `${metric.color}20`, 
+                padding: '8px', 
+                borderRadius: '8px' 
+              }}>
+                {metric.icon}
+              </div>
             </div>
+            {metric.change !== null && (
+              <div style={{ 
+                fontSize: '12px', 
+                color: metric.change > 0 ? '#27ae60' : '#e74c3c',
+                fontWeight: '600'
+              }}>
+                {metric.change > 0 ? '↗' : '↘'} {Math.abs(metric.change)}% vs last period
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        gap: '20px',
+        marginBottom: '30px'
+      }}>
+        {quickActions.map((action) => (
+          <div
+            key={action.id}
+            onClick={action.action}
+            style={{
+              backgroundColor: theme.colors.card,
+              padding: '20px',
+              borderRadius: '12px',
+              border: `1px solid ${theme.colors.border}`,
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              position: 'relative'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = theme.shadows.medium;
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = theme.shadows.small;
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <div style={{
+                fontSize: '32px',
+                backgroundColor: `${action.color}20`,
+                padding: '12px',
+                borderRadius: '12px'
+              }}>
+                {action.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: '0 0 5px 0', color: theme.colors.text }}>
+                  {action.title}
+                </h4>
+                <p style={{ margin: 0, fontSize: '14px', color: theme.colors.textSecondary }}>
+                  {action.description}
+                </p>
+              </div>
+              <div style={{
+                backgroundColor: action.color,
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                {action.count}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', marginBottom: '30px' }}>
+        {/* Recent Activities */}
+        <div style={{
+          backgroundColor: theme.colors.card,
+          padding: '20px',
+          borderRadius: '12px',
+          border: `1px solid ${theme.colors.border}`
+        }}>
+          <h3 style={{ margin: '0 0 20px 0', color: theme.colors.text }}>Recent Activities</h3>
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {dashboardData?.recentActivities.map((activity) => (
+              <div
+                key={activity.id}
+                style={{
+                  display: 'flex',
+                  gap: '15px',
+                  padding: '15px 0',
+                  borderBottom: `1px solid ${theme.colors.borderLight}`,
+                  lastChild: { borderBottom: 'none' }
+                }}
+              >
+                <div style={{
+                  fontSize: '20px',
+                  backgroundColor: `${getPriorityColor(activity.priority)}20`,
+                  padding: '8px',
+                  borderRadius: '8px',
+                  height: 'fit-content'
+                }}>
+                  {getActivityIcon(activity.type)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h5 style={{ margin: '0 0 5px 0', fontSize: '14px', color: theme.colors.text }}>
+                    {activity.title}
+                  </h5>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: theme.colors.textSecondary }}>
+                    {activity.description}
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: theme.colors.textMuted }}>
+                      {formatTimeAgo(activity.timestamp)}
+                    </span>
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      backgroundColor: `${getPriorityColor(activity.priority)}20`,
+                      color: getPriorityColor(activity.priority),
+                      fontWeight: '600'
+                    }}>
+                      {activity.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Search Section */}
-        <div className="search-section">
-          <h2>Search for What You Need</h2>
-          <form onSubmit={handleSearch} className="search-form">
-            <div className="search-input-group">
-              <input
-                type="text"
-                placeholder="Search doctors, appointments, help articles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-              />
-              <button 
-                type="submit" 
-                className="search-btn"
-                disabled={loading}
+        {/* Emergency Alerts */}
+        <div style={{
+          backgroundColor: theme.colors.card,
+          padding: '20px',
+          borderRadius: '12px',
+          border: `1px solid ${theme.colors.border}`
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: theme.colors.text }}>Emergency Alerts</h3>
+            <button
+              onClick={() => window.location.href = '/admin/emergency-alerts'}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: theme.colors.primary,
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              View All
+            </button>
+          </div>
+          
+          {dashboardData?.emergencyAlerts.length > 0 ? (
+            dashboardData.emergencyAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                style={{
+                  padding: '15px',
+                  backgroundColor: '#ffebee',
+                  border: '1px solid #ffcdd2',
+                  borderRadius: '8px',
+                  marginBottom: '10px'
+                }}
               >
-                {loading ? '🔄' : '🔍'} Search
-              </button>
-            </div>
-          </form>
-
-          {/* Search Suggestions */}
-          {suggestions.length > 0 && (
-            <div className="search-suggestions">
-              <h3>Search Suggestions</h3>
-              <div className="suggestions-list">
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    className="suggestion-item"
-                    onClick={() => navigate(suggestion.path)}
-                  >
-                    <span className="suggestion-title">{suggestion.title}</span>
-                    <span className="suggestion-description">{suggestion.description}</span>
-                  </button>
-                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: '600', color: '#c62828', fontSize: '14px' }}>
+                    🚨 {alert.type.replace('_', ' ').toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#666' }}>
+                    {formatTimeAgo(alert.timestamp)}
+                  </span>
+                </div>
+                <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#333' }}>
+                  Patient: {alert.patient}
+                </p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>
+                  Location: {alert.location}
+                </p>
               </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: theme.colors.textMuted }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>✅</div>
+              <p>No active emergencies</p>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Quick Actions */}
-        <div className="quick-actions">
-          <h2>Quick Actions</h2>
-          <div className="actions-grid">
-            {quickActions.map((action, index) => (
-              <button
-                key={index}
-                className="action-card"
-                onClick={() => navigate(action.path)}
-              >
-                <div className="action-icon">{action.icon}</div>
-                <div className="action-content">
-                  <h3>{action.title}</h3>
-                  <p>{action.description}</p>
+      {/* Department Statistics */}
+      <div style={{
+        backgroundColor: theme.colors.card,
+        padding: '20px',
+        borderRadius: '12px',
+        border: `1px solid ${theme.colors.border}`,
+        marginBottom: '30px'
+      }}>
+        <h3 style={{ margin: '0 0 20px 0', color: theme.colors.text }}>Department Utilization</h3>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '15px'
+        }}>
+          {dashboardData?.departmentStats.map((dept, index) => (
+            <div key={index} style={{
+              padding: '15px',
+              backgroundColor: theme.colors.surface,
+              borderRadius: '8px',
+              border: `1px solid ${theme.colors.borderLight}`
+            }}>
+              <h5 style={{ margin: '0 0 10px 0', color: theme.colors.text }}>{dept.name}</h5>
+              <div style={{ marginBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                  <span style={{ fontSize: '13px', color: theme.colors.textSecondary }}>
+                    {dept.patients}/{dept.capacity} patients
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: theme.colors.text }}>
+                    {dept.utilization}%
+                  </span>
                 </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Popular Pages */}
-        <div className="popular-pages">
-          <h2>Popular Pages</h2>
-          <div className="pages-grid">
-            {popularPages.map((page, index) => (
-              <button
-                key={index}
-                className="page-card"
-                onClick={() => navigate(page.path)}
-              >
-                <h3>{page.title}</h3>
-                <p>{page.description}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Pages */}
-        {recentPages.length > 0 && (
-          <div className="recent-pages">
-            <h2>Recently Visited</h2>
-            <div className="recent-list">
-              {recentPages.map((page, index) => (
-                <button
-                  key={index}
-                  className="recent-item"
-                  onClick={() => navigate(page.path)}
-                >
-                  <span className="recent-title">{page.title}</span>
-                  <span className="recent-time">{page.timestamp}</span>
-                </button>
-              ))}
+                <div style={{
+                  height: '6px',
+                  backgroundColor: theme.colors.borderLight,
+                  borderRadius: '3px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${dept.utilization}%`,
+                    backgroundColor: dept.utilization > 85 ? '#e74c3c' : dept.utilization > 70 ? '#f39c12' : '#27ae60',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Help Section */}
-        <div className="help-section">
-          <h2>Need More Help?</h2>
-          <div className="help-options">
-            <button 
-              className="help-option"
-              onClick={() => navigate('/contact')}
-            >
-              <span className="help-icon">💬</span>
-              <div className="help-content">
-                <h3>Contact Support</h3>
-                <p>Get help from our support team</p>
-              </div>
-            </button>
-
-            <button 
-              className="help-option"
-              onClick={() => navigate('/help')}
-            >
-              <span className="help-icon">📚</span>
-              <div className="help-content">
-                <h3>Help Center</h3>
-                <p>Browse our knowledge base</p>
-              </div>
-            </button>
-
-            <button 
-              className="help-option"
-              onClick={reportBrokenLink}
-            >
-              <span className="help-icon">🐛</span>
-              <div className="help-content">
-                <h3>Report Issue</h3>
-                <p>Let us know about this broken link</p>
-              </div>
-            </button>
-
-            <button 
-              className="help-option"
-              onClick={() => navigate('/')}
-            >
-              <span className="help-icon">🏠</span>
-              <div className="help-content">
-                <h3>Go Home</h3>
-                <p>Return to the homepage</p>
-              </div>
-            </button>
-          </div>
+          ))}
         </div>
+      </div>
 
-        {/* Navigation Breadcrumb */}
-        <div className="navigation-helper">
-          <h3>Try These Navigation Options:</h3>
-          <div className="nav-options">
-            <button 
-              className="nav-option"
-              onClick={() => window.history.back()}
-            >
-              ← Go Back
-            </button>
-            
-            <button 
-              className="nav-option"
-              onClick={() => navigate('/')}
-            >
-              🏠 Home
-            </button>
-            
-            {user && (
-              <button 
-                className="nav-option"
-                onClick={() => {
-                  if (user.role === 'PATIENT') navigate('/user/dashboard');
-                  else if (user.role === 'DOCTOR') navigate('/doctor/dashboard');
-                  else if (user.role === 'ADMIN') navigate('/admin/dashboard');
-                }}
-              >
-                📊 Dashboard
-              </button>
-            )}
-            
-            <button 
-              className="nav-option"
-              onClick={() => navigate('/search')}
-            >
-              🔍 Search
-            </button>
-          </div>
-        </div>
-
-        {/* Emergency Section */}
-        <div className="emergency-section">
-          <div className="emergency-card">
-            <div className="emergency-header">
-              <span className="emergency-icon">🚨</span>
-              <h3>Medical Emergency?</h3>
-            </div>
-            <p>If you're experiencing a medical emergency, don't waste time searching!</p>
-            <div className="emergency-actions">
-              <button 
-                className="emergency-btn primary"
-                onClick={() => navigate('/emergency')}
-              >
-                Emergency Alert System
-              </button>
-              <button 
-                className="emergency-btn secondary"
-                onClick={() => window.open('tel:911')}
-              >
-                Call 911
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Feedback Section */}
-        <div className="feedback-section">
-          <h3>Help Us Improve</h3>
-          <p>
-            We're sorry you encountered this error. Your feedback helps us improve the platform.
-          </p>
-          <div className="feedback-actions">
-            <button 
-              className="feedback-btn"
-              onClick={reportBrokenLink}
-            >
-              📧 Report This Issue
-            </button>
-            <button 
-              className="feedback-btn"
-              onClick={() => navigate('/contact?category=feedback')}
-            >
-              💭 Send Feedback
-            </button>
-          </div>
-        </div>
-
-        {/* Footer Info */}
-        <div className="error-footer">
-          <div className="footer-content">
-            <div className="error-code-info">
-              <h4>Error Details</h4>
-              <div className="error-details-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Error Code:</span>
-                  <span className="detail-value">404 - Page Not Found</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Timestamp:</span>
-                  <span className="detail-value">{new Date().toLocaleString()}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Requested URL:</span>
-                  <span className="detail-value">{window.location.pathname}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">User Agent:</span>
-                  <span className="detail-value">
-                    {navigator.userAgent.split(' ').slice(0, 3).join(' ')}...
+      {/* Top Performing Doctors */}
+      <div style={{
+        backgroundColor: theme.colors.card,
+        padding: '20px',
+        borderRadius: '12px',
+        border: `1px solid ${theme.colors.border}`
+      }}>
+        <h3 style={{ margin: '0 0 20px 0', color: theme.colors.text }}>Top Performing Doctors</h3>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '15px'
+        }}>
+          {dashboardData?.topDoctors.map((doctor) => (
+            <div key={doctor.id} style={{
+              padding: '15px',
+              backgroundColor: theme.colors.surface,
+              borderRadius: '8px',
+              border: `1px solid ${theme.colors.borderLight}`
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h5 style={{ margin: 0, color: theme.colors.text }}>{doctor.name}</h5>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ color: '#f39c12' }}>⭐</span>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: theme.colors.text }}>
+                    {doctor.rating}
                   </span>
                 </div>
               </div>
+              <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: theme.colors.textSecondary }}>
+                {doctor.specialty}
+              </p>
+              <p style={{ margin: 0, fontSize: '13px', color: theme.colors.textMuted }}>
+                {doctor.appointments} appointments this period
+              </p>
             </div>
-
-            <div className="tips-section">
-              <h4>💡 Tips to Avoid This Error</h4>
-              <ul>
-                <li>Check the URL for typos</li>
-                <li>Use our search function to find what you need</li>
-                <li>Navigate using the menu or breadcrumbs</li>
-                <li>Bookmark frequently visited pages</li>
-                <li>Contact support if you think this is a mistake</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Check */}
-        <div className="status-check">
-          <p>
-            <strong>Platform Status:</strong> 
-            <span className="status-indicator online">🟢 All systems operational</span>
-          </p>
-          <small>
-            If you're experiencing widespread issues, check our 
-            <a href="/status" target="_blank"> status page</a> for updates.
-          </small>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
-export default NotFound;
+export default AdminDashboard;

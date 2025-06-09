@@ -1,14 +1,19 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { authAPI } from '../services/api';
-import { USER_ROLES, STORAGE_KEYS } from '../utils/constants';
+
+// Create Auth Context
+const AuthContext = createContext();
 
 // Initial state
 const initialState = {
   user: null,
+  token: null,
   isAuthenticated: false,
   isLoading: true,
-  error: null,
-  role: null
+  userRole: null, // 'patient', 'doctor', 'admin'
+  permissions: [],
+  loginAttempts: 0,
+  lastLoginTime: null,
+  sessionExpiry: null
 };
 
 // Action types
@@ -17,15 +22,22 @@ const AUTH_ACTIONS = {
   LOGIN_SUCCESS: 'LOGIN_SUCCESS',
   LOGIN_FAILURE: 'LOGIN_FAILURE',
   LOGOUT: 'LOGOUT',
-  LOAD_USER_SUCCESS: 'LOAD_USER_SUCCESS',
-  LOAD_USER_FAILURE: 'LOAD_USER_FAILURE',
-  CLEAR_ERROR: 'CLEAR_ERROR'
+  REGISTER_START: 'REGISTER_START',
+  REGISTER_SUCCESS: 'REGISTER_SUCCESS',
+  REGISTER_FAILURE: 'REGISTER_FAILURE',
+  UPDATE_USER: 'UPDATE_USER',
+  SET_LOADING: 'SET_LOADING',
+  CHECK_AUTH: 'CHECK_AUTH',
+  REFRESH_TOKEN: 'REFRESH_TOKEN',
+  RESET_PASSWORD: 'RESET_PASSWORD',
+  CLEAR_ERRORS: 'CLEAR_ERRORS'
 };
 
-// Reducer function
+// Auth reducer
 const authReducer = (state, action) => {
   switch (action.type) {
     case AUTH_ACTIONS.LOGIN_START:
+    case AUTH_ACTIONS.REGISTER_START:
       return {
         ...state,
         isLoading: true,
@@ -33,25 +45,51 @@ const authReducer = (state, action) => {
       };
 
     case AUTH_ACTIONS.LOGIN_SUCCESS:
-    case AUTH_ACTIONS.LOAD_USER_SUCCESS:
       return {
         ...state,
         user: action.payload.user,
-        role: action.payload.role,
+        token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
+        userRole: action.payload.user.role,
+        permissions: action.payload.user.permissions || [],
+        lastLoginTime: new Date().toISOString(),
+        sessionExpiry: action.payload.sessionExpiry,
+        loginAttempts: 0,
+        error: null
+      };
+
+    case AUTH_ACTIONS.REGISTER_SUCCESS:
+      return {
+        ...state,
+        user: action.payload.user,
+        token: action.payload.token,
+        isAuthenticated: true,
+        isLoading: false,
+        userRole: action.payload.user.role,
+        permissions: action.payload.user.permissions || [],
         error: null
       };
 
     case AUTH_ACTIONS.LOGIN_FAILURE:
-    case AUTH_ACTIONS.LOAD_USER_FAILURE:
       return {
         ...state,
-        user: null,
-        role: null,
-        isAuthenticated: false,
         isLoading: false,
-        error: action.payload
+        error: action.payload.error,
+        loginAttempts: state.loginAttempts + 1,
+        user: null,
+        token: null,
+        isAuthenticated: false
+      };
+
+    case AUTH_ACTIONS.REGISTER_FAILURE:
+      return {
+        ...state,
+        isLoading: false,
+        error: action.payload.error,
+        user: null,
+        token: null,
+        isAuthenticated: false
       };
 
     case AUTH_ACTIONS.LOGOUT:
@@ -60,7 +98,38 @@ const authReducer = (state, action) => {
         isLoading: false
       };
 
-    case AUTH_ACTIONS.CLEAR_ERROR:
+    case AUTH_ACTIONS.UPDATE_USER:
+      return {
+        ...state,
+        user: { ...state.user, ...action.payload },
+        error: null
+      };
+
+    case AUTH_ACTIONS.SET_LOADING:
+      return {
+        ...state,
+        isLoading: action.payload
+      };
+
+    case AUTH_ACTIONS.CHECK_AUTH:
+      return {
+        ...state,
+        user: action.payload.user,
+        token: action.payload.token,
+        isAuthenticated: action.payload.isAuthenticated,
+        userRole: action.payload.user?.role || null,
+        permissions: action.payload.user?.permissions || [],
+        isLoading: false
+      };
+
+    case AUTH_ACTIONS.REFRESH_TOKEN:
+      return {
+        ...state,
+        token: action.payload.token,
+        sessionExpiry: action.payload.sessionExpiry
+      };
+
+    case AUTH_ACTIONS.CLEAR_ERRORS:
       return {
         ...state,
         error: null
@@ -71,154 +140,354 @@ const authReducer = (state, action) => {
   }
 };
 
-// Create context
-const AuthContext = createContext();
-
-// Auth provider component
+// Auth Provider Component
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Load user on app start
+  // Check authentication on app load
   useEffect(() => {
-    loadUser();
+    checkAuthStatus();
   }, []);
 
-  // Load user from token
-  const loadUser = async () => {
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    
-    if (!token) {
-      dispatch({ type: AUTH_ACTIONS.LOAD_USER_FAILURE, payload: 'No token found' });
-      return;
+  // Auto-logout on session expiry
+  useEffect(() => {
+    if (state.sessionExpiry) {
+      const timeUntilExpiry = new Date(state.sessionExpiry) - new Date();
+      if (timeUntilExpiry > 0) {
+        const timeoutId = setTimeout(() => {
+          logout();
+        }, timeUntilExpiry);
+        return () => clearTimeout(timeoutId);
+      } else {
+        logout();
+      }
     }
+  }, [state.sessionExpiry]);
 
+  // Check if user is authenticated on app start
+  const checkAuthStatus = async () => {
     try {
-      // Get user data from localStorage first
-      const userData = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-      if (userData) {
-        const parsedUser = JSON.parse(userData);
+      const token = localStorage.getItem('auth_token');
+      const userData = localStorage.getItem('user_data');
+
+      if (token && userData) {
+        const user = JSON.parse(userData);
+        
+        // Verify token with backend
+        const response = await fetch('/api/auth/verify', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          dispatch({
+            type: AUTH_ACTIONS.CHECK_AUTH,
+            payload: {
+              user: data.user || user,
+              token,
+              isAuthenticated: true
+            }
+          });
+        } else {
+          // Token invalid, clear storage
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_data');
+          dispatch({
+            type: AUTH_ACTIONS.CHECK_AUTH,
+            payload: {
+              user: null,
+              token: null,
+              isAuthenticated: false
+            }
+          });
+        }
+      } else {
         dispatch({
-          type: AUTH_ACTIONS.LOAD_USER_SUCCESS,
+          type: AUTH_ACTIONS.CHECK_AUTH,
           payload: {
-            user: parsedUser,
-            role: parsedUser.role
+            user: null,
+            token: null,
+            isAuthenticated: false
           }
         });
       }
     } catch (error) {
-      console.error('Failed to load user:', error);
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      console.error('Auth check error:', error);
       dispatch({
-        type: AUTH_ACTIONS.LOAD_USER_FAILURE,
-        payload: error.message
+        type: AUTH_ACTIONS.CHECK_AUTH,
+        payload: {
+          user: null,
+          token: null,
+          isAuthenticated: false
+        }
       });
     }
   };
 
   // Login function
-  const login = async (credentials, role) => {
+  const login = async (credentials) => {
+    dispatch({ type: AUTH_ACTIONS.LOGIN_START });
+
     try {
-      dispatch({ type: AUTH_ACTIONS.LOGIN_START });
-
-      let response;
-      switch (role) {
-        case USER_ROLES.PATIENT:
-          response = await authAPI.loginUser(credentials);
-          break;
-        case USER_ROLES.DOCTOR:
-          response = await authAPI.loginDoctor(credentials);
-          break;
-        case USER_ROLES.ADMIN:
-          response = await authAPI.loginAdmin(credentials);
-          break;
-        default:
-          throw new Error('Invalid role specified');
-      }
-
-      const { token, user } = response.data;
-
-      // Store token and user data
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
-
-      dispatch({
-        type: AUTH_ACTIONS.LOGIN_SUCCESS,
-        payload: {
-          user,
-          role: user.role
-        }
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(credentials)
       });
 
-      return { success: true, user };
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store token and user data
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('user_data', JSON.stringify(data.user));
+
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_SUCCESS,
+          payload: {
+            user: data.user,
+            token: data.token,
+            sessionExpiry: data.sessionExpiry
+          }
+        });
+
+        return { success: true, user: data.user };
+      } else {
+        dispatch({
+          type: AUTH_ACTIONS.LOGIN_FAILURE,
+          payload: {
+            error: data.message || 'Login failed'
+          }
+        });
+        return { success: false, error: data.message };
+      }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Login failed';
       dispatch({
         type: AUTH_ACTIONS.LOGIN_FAILURE,
-        payload: errorMessage
+        payload: {
+          error: 'Network error. Please try again.'
+        }
       });
-      return { success: false, error: errorMessage };
+      return { success: false, error: 'Network error' };
     }
   };
 
   // Register function
-  const register = async (userData, role) => {
-    try {
-      let response;
-      switch (role) {
-        case USER_ROLES.PATIENT:
-          response = await authAPI.registerUser(userData);
-          break;
-        case USER_ROLES.DOCTOR:
-          response = await authAPI.registerDoctor(userData);
-          break;
-        case USER_ROLES.ADMIN:
-          response = await authAPI.registerAdmin(userData);
-          break;
-        default:
-          throw new Error('Invalid role specified');
-      }
+  const register = async (userData) => {
+    dispatch({ type: AUTH_ACTIONS.REGISTER_START });
 
-      return { success: true, data: response.data };
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store token and user data
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('user_data', JSON.stringify(data.user));
+
+        dispatch({
+          type: AUTH_ACTIONS.REGISTER_SUCCESS,
+          payload: {
+            user: data.user,
+            token: data.token
+          }
+        });
+
+        return { success: true, user: data.user };
+      } else {
+        dispatch({
+          type: AUTH_ACTIONS.REGISTER_FAILURE,
+          payload: {
+            error: data.message || 'Registration failed'
+          }
+        });
+        return { success: false, error: data.message };
+      }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Registration failed';
-      return { success: false, error: errorMessage };
+      dispatch({
+        type: AUTH_ACTIONS.REGISTER_FAILURE,
+        payload: {
+          error: 'Network error. Please try again.'
+        }
+      });
+      return { success: false, error: 'Network error' };
     }
   };
 
   // Logout function
   const logout = async () => {
     try {
-      await authAPI.logout();
+      // Notify backend about logout
+      if (state.token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${state.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      // Clear local storage
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_data');
+      
+      // Update state
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
   };
 
-  // Clear error
-  const clearError = () => {
-    dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
+  // Update user profile
+  const updateUser = async (updatedData) => {
+    try {
+      const response = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${state.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Update local storage
+        localStorage.setItem('user_data', JSON.stringify(data.user));
+        
+        dispatch({
+          type: AUTH_ACTIONS.UPDATE_USER,
+          payload: data.user
+        });
+
+        return { success: true, user: data.user };
+      } else {
+        return { success: false, error: data.message };
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error' };
+    }
+  };
+
+  // Refresh token
+  const refreshToken = async () => {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${state.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('auth_token', data.token);
+        
+        dispatch({
+          type: AUTH_ACTIONS.REFRESH_TOKEN,
+          payload: {
+            token: data.token,
+            sessionExpiry: data.sessionExpiry
+          }
+        });
+
+        return true;
+      } else {
+        logout();
+        return false;
+      }
+    } catch (error) {
+      logout();
+      return false;
+    }
+  };
+
+  // Reset password
+  const resetPassword = async (email) => {
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+      return { success: response.ok, message: data.message };
+    } catch (error) {
+      return { success: false, message: 'Network error' };
+    }
+  };
+
+  // Clear errors
+  const clearErrors = () => {
+    dispatch({ type: AUTH_ACTIONS.CLEAR_ERRORS });
+  };
+
+  // Check if user has specific permission
+  const hasPermission = (permission) => {
+    return state.permissions.includes(permission);
+  };
+
+  // Check if user has specific role
+  const hasRole = (role) => {
+    return state.userRole === role;
+  };
+
+  // Check if user is any of the specified roles
+  const hasAnyRole = (roles) => {
+    return roles.includes(state.userRole);
+  };
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!state.user?.name) return '?';
+    return state.user.name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   // Context value
   const value = {
     // State
-    user: state.user,
-    isAuthenticated: state.isAuthenticated,
-    isLoading: state.isLoading,
-    error: state.error,
-    role: state.role,
-
+    ...state,
+    
     // Actions
     login,
     register,
     logout,
-    clearError,
-    loadUser
+    updateUser,
+    refreshToken,
+    resetPassword,
+    clearErrors,
+    
+    // Utilities
+    hasPermission,
+    hasRole,
+    hasAnyRole,
+    getUserInitials,
+    checkAuthStatus
   };
 
   return (
@@ -235,6 +504,50 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+};
+
+// HOC for protected routes
+export const withAuth = (Component, allowedRoles = []) => {
+  return function AuthenticatedComponent(props) {
+    const { isAuthenticated, userRole, isLoading } = useAuth();
+
+    if (isLoading) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh' 
+        }}>
+          <div>Loading...</div>
+        </div>
+      );
+    }
+
+    if (!isAuthenticated) {
+      // Redirect to login
+      window.location.href = '/login';
+      return null;
+    }
+
+    if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          flexDirection: 'column',
+          gap: '20px'
+        }}>
+          <h2>Access Denied</h2>
+          <p>You don't have permission to access this page.</p>
+        </div>
+      );
+    }
+
+    return <Component {...props} />;
+  };
 };
 
 export default AuthContext;
